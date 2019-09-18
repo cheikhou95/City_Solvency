@@ -1,0 +1,32 @@
+---
+title: "Financial Wellness"
+author: "Faith Benamy & Cheikhou Kane"
+date: "9/18/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Intro
+
+#Rankings
+
+##All debt sources (reported values)
+
+### Pension + OPEB + Bond (lump sum)
+
+### Pension + OPEB + Bond (% of budget)
+
+### Pension + OPEB + Bond (per capita)
+
+##All debt sources (standardized values)
+
+#City Drill Down (Los Angeles)
+
+#Comparing two cities
+
+#Conclusion
+
+#Notes: Data Collection Report
