@@ -1,0 +1,11 @@
+city,entity,amort_period,disc_rate,health_cost_rate,health_cost_ultimate,AAL_reported,assets,funded_ratio_reported,payroll_cov,city_contrib,revenue,year,valuation_date
+Jacksonville,City,30,0.04,0.075,0.045,198600,0,0,,5231,1106522,2017,6/30/2017
+Boston,Public Health Comission,30,0.055,0.07,0.05,108524,10945,10.09,,,,2017,6/30/2017
+Boston,MBTA Transit Authority,30,0.0292,0.07,0.05,2368814,0,0,,,,2017,6/30/2017
+Minneapolis,City,30,0.035,0.065,0.05,34807,0,0,,1871,493620,2017,12/31/2017
+Los Angeles,City,18,0.0725,0.075,0.045,3322746,1637846,49.3,1475539,177024,5007604,2017,6/30/2017
+Los Angeles,LACERS City Employee Retirement System,15,0.0725,0.0687,0.045,3005806,2438458,81.1,2062316,97457,,2017,6/30/2017
+Los Angeles,DWP Department Water and Power,30,0.0725,0.065,0.045,2347484,1898137,80.9,991815,85736,,2017,6/30/2017
+New York,City,,0.0317,0.0784,0.05,93076575,4653903,0.05,25200000,2425375,83029725,2017,6/30/2017
+Philadelphia,City,,0.0775,,,1936600,0,0,1676500,,3708116,2017,6/30/2017
+Boston,City,30,0.07,0.07,0.05,2489239,324261,13.03,,159180,3165482,2017,6/30/2017
