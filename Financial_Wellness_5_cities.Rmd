@@ -2,11 +2,13 @@
 title: "Financial Wellness"
 author: "Faith Benamy & Cheikhou Kane"
 date: "9/18/2019"
-output: html_document
+output:
+  html_document:
+    number_sections: TRUE
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = FALSE)
 ```
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
@@ -14,64 +16,180 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(ggplot2)
 library(wesanderson)
+library(reshape2)
+library(plotly)
 
 #Data
 opeb <- read.csv("C:/Users/cheik/City_Solvency/OPEB - Sheet1.csv") %>%
   filter(city != "Philadelphia")
 
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
 #Data Processing
+
 opeb$AAL_reported <- as.numeric(opeb$AAL_reported)
+
 ##Adding Unfunded Liability (UAAL)
 opeb <- opeb %>%
   mutate(UAAL_reported = AAL_reported - assets)
+
+#Getting AAL with new discount rate
+opeb <- opeb %>%
+  mutate(AAL_standard =  (AAL_reported*((1+disc_rate)^15) )/ (1.0403)^15)
+
+#UAAL with new discount rate
+opeb <- opeb %>%
+  mutate(UAAL_standard = AAL_standard - assets)
 ```
-
-
-
-The unfunded obligations of the pension and Other Post-Employment Benefits (OPEB) plans sponsored by state and local governments in the United States continue to grow. In the following report, we study in detail the financial obligations of 5 major US cities: Boston, Jacksonville, Los Angeles, Minneapolis and New York. We report on both their own measurements of their obligations, and how these differ from valuations using more realistic assumptions.
-
-At the end of the 2017 fiscal year, the following cities reported unfunded liabilities of (INSERT TOTAL UNFUNDED LIABILITIES): (INSERT PENSION TOTAL) for pensions, $96 billion for OPEB, (INSERT BONDS TOTAL)for general obligation bonds.  
-
-This report is organized as follows: (INSERT SCHEMA)
-
-##Rankings
-
-All debt sources (reported values)
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
-opeb %>%
+#Summary data for OPEB
+opeb.summary <- opeb %>%
   group_by(city) %>%
-  select(UAAL_reported) %>%
-  summarise(UAAL_reported = sum(UAAL_reported)) %>%
-  ggplot(aes(x = city, y = UAAL_reported, fill = city)) + geom_bar(stat = "identity") +
-scale_fill_manual(values=wes_palette(n=5, name="Zissou1")) +theme_classic() + coord_flip() +
-  xlab("city") + ylab("Unfunded OPEB Liability (in thousands)") + ggtitle("Unfunded OPEB Liability \n (reported values in thousands)") + theme(plot.title = element_text(hjust = 0.5))
+  select(UAAL_reported,UAAL_standard, revenue, Population, city_contrib) %>%
+  summarise(UAAL_reported = sum(UAAL_reported),
+            UAAL_standard = sum(UAAL_standard),
+            Revenue = mean(revenue, na.rm = TRUE),
+            Population = mean(Population, na.rm = TRUE),
+            city_contrib = sum(city_contrib, na.rm =TRUE))
+
+Pension.UL <- c(1287747, 317400, 8428197,645973, 5624100)
+
+opeb.summary <- cbind(opeb.summary, Pension.UL)
+
 ```
 
-Given the skewness of the data, we decided to use a logarithmic scale to showcase the unfunded liabilities of these cities.
+
+The unfunded obligations of the pension and Other Post-Employment Benefits (OPEB) plans sponsored by local governments in the United States continue to grow. In the following report, we study in detail the financial obligations of 5 major US cities: Boston, Jacksonville, Los Angeles, Minneapolis and New York. We report on both their own measurements of their obligations, and how these differ from valuations using more realistic assumptions.
+
+At the end of the 2017 fiscal year, the following cities reported unfunded liabilities of over 112 billions USD:  16.3 billions for pensions, $96 billions for OPEB. 
+
+**I. Rankings**
+
+In the following section, we showcase different ways of ranking cities with respect to their financial obligations. First, we compare them using reported values then using values calculated with more realistic assumptions. 
+
+**1. Reported Value Rankings**
+
+Using reported values, we rank cities according to: the grand total of their financial obligations, the share of revenue used for benefit payments (OPEB only), and finally the financial obligation scaled by population size.  
+
+**Financial Obligations Grand Total**
+
+```{r, echo=FALSE}
+liability.summary <- opeb.summary %>%
+  select(city, UAAL_reported, Pension.UL) %>%
+  melt(id.vars="city") %>%
+  mutate(variable = recode(variable,
+                           `UAAL_reported`="OPEB",
+                           `Pension.UL`="Pension"))
+```
+
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
-opeb %>%
-  group_by(city) %>%
-  select(UAAL_reported) %>%
-  summarise(UAAL_reported = sum(UAAL_reported)) %>%
-  ggplot(aes(x = reorder(city, log(UAAL_reported)), y = log(UAAL_reported), fill = city)) + geom_bar(stat = "identity") +
-scale_fill_manual(values=wes_palette(n=5, name="Zissou1")) +theme_classic() + coord_flip() +
-  xlab("City") + ylab("Unfunded OPEB Liability (log scale)") + ggtitle("Unfunded OPEB Liability \n (reported values)") + theme(plot.title = element_text(hjust = 0.5))
+
+plot1 <- ggplot(liability.summary, aes(x = reorder(city, value/1000), y = value/1000, fill = variable)) + geom_bar(stat = "identity") + scale_fill_manual(values=wes_palette(n=2, name="BottleRocket2")) +theme_classic() + coord_flip() + xlab("City") + 
+  ylab("Unfunded Liability (in millions)") + ggtitle("Fig 1.a Unfunded Obligations \n (reported values in millions)") + theme(plot.title = element_text(hjust = 0.5)) +
+  labs(fill = "Debt Source")+ theme(legend.position = "none")
+
+plot2 <- ggplot(liability.summary, aes(x = reorder(city, log(value/1000)), y = log(value/1000), fill = variable)) + geom_bar(stat = "identity") + scale_fill_manual(values=wes_palette(n=2, name="BottleRocket2")) +theme_classic() + coord_flip() + xlab("City") + 
+  ylab("Unfunded Liability (log scale)") + ggtitle("Fig 1.b Unfunded Obligations \n (reported values)") + theme(plot.title = element_text(hjust = 0.5)) +
+  labs(fill = "Debt Source") 
+
 ```
 
-### Pension + OPEB + Bond (lump sum)
+Given the skewness of the data, we decided to present the reported total of the unfunded obligations using a logarithmic scale as well. 
 
-### Pension + OPEB + Bond (% of budget)
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
 
-### Pension + OPEB + Bond (per capita)
+require(gridExtra)
+grid.arrange(plot1, plot2, ncol=2)
 
-##All debt sources (standardized values)
+```
 
-#City Drill Down (Los Angeles)
 
-#Comparing two cities
+**OPEB benefit payment as share of revenue**
 
-#Conclusion
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
 
-#Notes: Data Collection Report
+opeb.summary %>%
+  mutate(share_revenue = round(100*(city_contrib/Revenue),2)) %>%
+  ggplot(aes(x = reorder(city, share_revenue), y = share_revenue, fill = city)) + geom_bar(stat = "identity") + scale_fill_manual(values=wes_palette(n=5, name="BottleRocket2")) +theme_classic() + coord_flip() + xlab("City") + 
+  ylab("Share of Revenue") + ggtitle("Fig 2. OPEB Benefit Payment as share of Revenue \n (2017 reported values)") + theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+
+**Total Obligation per capita**
+
+```{r}
+liability.capita <- opeb.summary %>%
+  select(city, Population, UAAL_reported, Pension.UL) %>%
+  transmute(city = city,
+            OPEB.capita = UAAL_reported/Population,
+            Pension.capita = Pension.UL/Population) %>%
+  melt(id.vars="city") %>%
+  mutate(variable = recode(variable,
+                           `OPEB.capita`="OPEB",
+                           `Pension.capita`="Pension"))
+
+ggplot(liability.capita, aes(x = reorder(city, value), y = value, fill = variable)) + geom_bar(stat = "identity") + scale_fill_manual(values=wes_palette(n=2, name="BottleRocket2")) +theme_classic() + coord_flip() + xlab("City") + 
+  ylab("Unfunded Liability (in thousands)") + ggtitle("Fig 3. Unfunded Obligations per capita \n (reported values)") + theme(plot.title = element_text(hjust = 0.5)) +
+  labs(fill = "Debt Source")
+
+```
+
+
+**2. Calculated Values Rankings**
+
+Using calculated values, we rank cities according to the grand total of their financial obligations and the financial obligation scaled by population size. 
+For OPEB, we calculate the Unfunded actuarial liability of each city with the AA corporate rate (4.03%) as the discount rate and a 15 year amortization period. 
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+ggplot(opeb.summary,aes(x = reorder(city, log(UAAL_standard)), y = log(UAAL_standard), fill = city)) + geom_bar(stat = "identity") +
+scale_fill_manual(values=wes_palette(n=5, name="BottleRocket2")) +theme_classic() + coord_flip() +
+  xlab("City") + ylab("Unfunded OPEB Liability (log scale)") + ggtitle("Unfunded OPEB Liability \n (calculated values)") + theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+**Obligations per capita**
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+opeb.summary %>%
+  mutate(UAAL_capita_std = UAAL_standard/Population) %>%
+  ggplot(aes(x = reorder(city, UAAL_capita_std), y = UAAL_capita_std, fill = city)) + geom_bar(stat = "identity") +
+scale_fill_manual(values=wes_palette(n=5, name="BottleRocket2")) +theme_classic() + coord_flip() +
+  xlab("City") + ylab("Unfunded OPEB Liability (in thousands)") + ggtitle("Unfunded OPEB Liability per capita \n (calculated values)") + theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+**II. Case Study: Los Angeles**
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+#Getting funded ratios
+opeb <- opeb %>%
+  mutate(funded_ratio_standard = 100*(assets/AAL_standard))
+
+df1 <- opeb %>%
+  filter(city == "Los Angeles") %>%
+  select(entity,funded_ratio_reported,funded_ratio_standard)
+
+entity.abbrev <- c("City", "LACERS", "DWP")
+
+df1 <- cbind(df1,entity.abbrev)
+
+df2 <- df1 %>%
+  select(entity.abbrev, funded_ratio_reported, funded_ratio_standard) %>%
+  melt(id.vars='entity.abbrev') %>%
+  mutate(variable = recode(variable,
+                           `funded_ratio_reported`="Reported",
+                           `funded_ratio_standard`="Calculated"))
+
+
+ggplot(df2, aes(x=entity.abbrev, y=value, fill=variable)) + geom_bar(stat='identity', position='dodge') + scale_fill_manual(values=wes_palette(n=2, name="BottleRocket2")) +
+  xlab("Entity") + ylab("OPEB Funded Ratio") + theme_classic()  + ggtitle("City of Los Angeles OPEB Funded Ratios") + theme(plot.title = element_text(hjust = 0.5)) + labs(fill = "Type")
+```
+
+
+
