@@ -1,10 +1,10 @@
 ---
 title: "Financial Wellness"
-author: "Faith Benamy & Cheikhou Kane"
-date: "9/18/2019"
 output:
+  pdf_document: default
   html_document:
-    number_sections: TRUE
+    number_sections: yes
+date: "9/18/2019"
 ---
 
 ```{r setup, include=FALSE}
@@ -20,8 +20,9 @@ library(reshape2)
 library(plotly)
 
 #Data
-opeb <- read.csv("C:/Users/cheik/City_Solvency/OPEB - Sheet1.csv") %>%
+opeb <- read.csv("OPEB - Sheet1.csv") %>%
   filter(city != "Philadelphia")
+pension <- read_csv("PensionCalculation.csv")
 
 ```
 
@@ -41,9 +42,54 @@ opeb <- opeb %>%
 #UAAL with new discount rate
 opeb <- opeb %>%
   mutate(UAAL_standard = AAL_standard - assets)
+
+#corporate bond rate
+CBR <- 0.0403
+#standardized amoritization period
+am_period <- 12
+
+pension <- pension %>% 
+            mutate(TPL = case_when(is.na(TotalPensionLiability) ~ 
+                                     NetLiability + Assets),
+                   TPL_minus1 = case_when(is.na(TPL_minus1) ~ 
+                                            NL_minus1 + Assets), 
+                   TPL_plus1 = case_when(is.na(TPL_plus1) ~ 
+                                           NL_plus1 + Assets),
+                   PercentOwed = PercentOwedTotal, 
+                   Duration = (TPL_minus1 - TPL_plus1)/
+                     (2*TPL*.01),
+                   Convexity = (TPL_plus1 + TPL_minus1 - 
+                                (2 * TPL))/ (2 * TPL * (0.01^2)),
+                   Rate_Change = (CBR - DiscountRate),
+                   Standardized_TPL =
+                     ((am_period * Rate_Change) +
+                     (0.5 * Convexity * Rate_Change^2 * 100) +
+                       1)*TPL,
+                   Calc_Type = 
+                     case_when(!is.na(PerYear) ~ 
+                              "Yearly Contrib", 
+                              TRUE ~ "Percentage Contrib"),
+                   Standardized_NL = case_when(!is.na(Assets) ~ Standardized_TPL - Assets,
+                    is.na(Assets) ~ Standardized_TPL),
+                   reported_pension = case_when(
+                     Calc_Type == "Yearly Contrib" 
+                     ~ round(Duration,0) * PerYear, 
+                     (Calc_Type == "Percentage Contrib" & !is.na(Assets))
+                     ~ NetLiability * PercentOwed, 
+                   (Calc_Type == "Percentage Contrib" & is.na(Assets)) ~
+                     TotalPensionLiability * PercentOwed),
+                   standardized_pension = case_when(
+                     Calc_Type == "Yearly Contrib" 
+                     ~ am_period * PerYear, 
+                     Calc_Type == "Percentage Contrib"
+                     ~ Standardized_NL * PercentOwed))
+
 ```
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+cities <- c("Boston", "Jacksonville", "Los Angeles", "Minneapolis", "New York")
+
 #Summary data for OPEB
 opeb.summary <- opeb %>%
   group_by(city) %>%
@@ -54,10 +100,17 @@ opeb.summary <- opeb %>%
             Population = mean(Population, na.rm = TRUE),
             city_contrib = sum(city_contrib, na.rm =TRUE))
 
-Pension.UL <- c(1287747, 317400, 8428197,645973, 5624100)
+pension.summary <- pension %>% 
+                    filter(City %in% cities, City != "Boston") %>% 
+                    group_by(City) %>% 
+                    summarise(Pension_reported =
+                                sum(reported_pension),
+                              Pension_standard =
+                                sum(standardized_pension))
+
+Pension.UL <- c(0, pension.summary$Pension_reported)
 
 opeb.summary <- cbind(opeb.summary, Pension.UL)
-
 ```
 
 
@@ -162,6 +215,14 @@ scale_fill_manual(values=wes_palette(n=5, name="BottleRocket2")) +theme_classic(
   xlab("City") + ylab("Unfunded OPEB Liability (in thousands)") + ggtitle("Unfunded OPEB Liability per capita \n (calculated values)") + theme(plot.title = element_text(hjust = 0.5))
 ```
 
+For Pensions, we also used the corporate discount rate of 4.03 but used a 12 year amoritizaion period (which is the unweighted average of all pension plans). 
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(pension.summary,aes(x = reorder(City, log(Pension_standard)), y = log(Pension_standard), fill = City)) + geom_bar(stat = "identity") +
+scale_fill_manual(values=wes_palette(n=5, name="BottleRocket2")) +theme_classic() + coord_flip() +
+  xlab("City") + ylab("Unfunded Pension Liability (log scale)") + ggtitle("Unfunded Pension Liability \n (calculated values)") + theme(plot.title = element_text(hjust = 0.5))
+```
+
 
 **II. Case Study: Los Angeles**
 
@@ -193,3 +254,25 @@ ggplot(df2, aes(x=entity.abbrev, y=value, fill=variable)) + geom_bar(stat='ident
 
 
 
+##All Cities
+
+```{r}
+all_cities <- pension %>% 
+                    filter(!(City %in% c("Boston", "Seattle"))) %>%
+                    group_by(City) %>% 
+                    summarise(Pension_reported =
+                                sum(reported_pension),
+                              Pension_standard =
+                                sum(standardized_pension)) %>% 
+                    arrange(desc(City)) %>% 
+                    mutate(City = fct_inorder(City))
+
+ggplot(all_cities, aes(x = City, y = Pension_reported)) + geom_bar(stat = "identity", fill = wes_palette("BottleRocket1")[1]) + coord_flip() + theme_classic()+
+  xlab("City") + ylab("Reported Net Pension Liability For All Cities") + ggtitle("Reported Net Pension Liability") + theme(plot.title = element_text(hjust = 0.5))
+
+
+ggplot(all_cities, aes(x = City, y = log(Pension_reported))) + geom_bar(stat = "identity", fill = wes_palette("BottleRocket1")[1]) + coord_flip() + theme_classic()+
+  xlab("City") + ylab("Reported Net Pension Liability For All Cities (Log)") + ggtitle("Reported Net Pension Liability (Log)") + theme(plot.title = element_text(hjust = 0.5))
+
+
+```
