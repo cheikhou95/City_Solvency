@@ -20,27 +20,27 @@ library(reshape2)
 library(plotly)
 
 #Data
-opeb <- read.csv("OPEB - Sheet1.csv") %>%
-  filter(city != "Philadelphia")
-pension <- read_csv("PensionCalculation.csv")
+opeb.raw <- read.csv("OPEB_20.csv") 
+
+pension.raw <- read_csv("PensionCalculation.csv")
 
 ```
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
 #Data Processing
 
-opeb$AAL_reported <- as.numeric(opeb$AAL_reported)
+opeb.raw$AAL_reported <- as.numeric(opeb.raw$AAL_reported)
 
 ##Adding Unfunded Liability (UAAL)
-opeb <- opeb %>%
+opeb.raw <- opeb.raw %>%
   mutate(UAAL_reported = AAL_reported - assets)
 
 #Getting AAL with new discount rate
-opeb <- opeb %>%
+opeb.raw <- opeb.raw %>%
   mutate(AAL_standard =  (AAL_reported*((1+disc_rate)^15) )/ (1.0403)^15)
 
 #UAAL with new discount rate
-opeb <- opeb %>%
+opeb.raw <- opeb.raw %>%
   mutate(UAAL_standard = AAL_standard - assets)
 
 #corporate bond rate
@@ -48,7 +48,7 @@ CBR <- 0.0403
 #standardized amoritization period
 am_period <- 12
 
-pension <- pension %>% 
+pension.raw <- pension.raw %>% 
             mutate(TPL = case_when(is.na(TotalPensionLiability) ~ 
                                      NetLiability + Assets),
                    TPL_minus1 = case_when(is.na(TPL_minus1) ~ 
@@ -88,29 +88,33 @@ pension <- pension %>%
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
 
-cities <- c("Boston", "Jacksonville", "Los Angeles", "Minneapolis", "New York")
-
 #Summary data for OPEB
-opeb.summary <- opeb %>%
+opeb.summary <- opeb.raw %>%
   group_by(city) %>%
-  select(UAAL_reported,UAAL_standard, revenue, Population, city_contrib) %>%
+  select(UAAL_reported,UAAL_standard, revenue, Pop, city_contrib) %>%
   summarise(UAAL_reported = sum(UAAL_reported),
             UAAL_standard = sum(UAAL_standard),
             Revenue = mean(revenue, na.rm = TRUE),
-            Population = mean(Population, na.rm = TRUE),
+            Population = mean(Pop, na.rm = TRUE),
             city_contrib = sum(city_contrib, na.rm =TRUE))
+```
 
-pension.summary <- pension %>% 
-                    filter(City %in% cities, City != "Boston") %>% 
+```{r}
+#Pension Summary
+
+pension.summary <- pension.raw %>% 
                     group_by(City) %>% 
                     summarise(Pension_reported =
                                 sum(reported_pension),
                               Pension_standard =
                                 sum(standardized_pension))
+```
 
-Pension.UL <- c(0, pension.summary$Pension_reported)
+```{r}
+#combined Pension + OPEB
+Pension.UL <- c(pension.summary$Pension_reported)
 
-opeb.summary <- cbind(opeb.summary, Pension.UL)
+total.summary <- cbind(opeb.summary, Pension.UL)
 ```
 
 
@@ -129,7 +133,7 @@ Using reported values, we rank cities according to: the grand total of their fin
 **Financial Obligations Grand Total**
 
 ```{r, echo=FALSE}
-liability.summary <- opeb.summary %>%
+total.reported <- total.summary %>%
   select(city, UAAL_reported, Pension.UL) %>%
   melt(id.vars="city") %>%
   mutate(variable = recode(variable,
@@ -140,22 +144,43 @@ liability.summary <- opeb.summary %>%
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
 
-plot1 <- ggplot(liability.summary, aes(x = reorder(city, value/1000), y = value/1000, fill = variable)) + geom_bar(stat = "identity") + scale_fill_manual(values=wes_palette(n=2, name="BottleRocket2")) +theme_classic() + coord_flip() + xlab("City") + 
-  ylab("Unfunded Liability (in millions)") + ggtitle("Fig 1.a Unfunded Obligations \n (reported values in millions)") + theme(plot.title = element_text(hjust = 0.5)) +
+plot1 <- ggplot(total.reported, aes(x = reorder(city, value/1000), y = value/1000, fill = variable)) + 
+  geom_bar(stat = "identity") + 
+  scale_fill_manual(values=wes_palette(n=2, name="BottleRocket2")) +
+  theme_classic() + coord_flip() + xlab("City") + 
+  ylab("Unfunded Liability (in millions)") + 
+  ggtitle("Fig 1.a Unfunded Obligations \n (reported values in millions)") +
+  theme(plot.title = element_text(hjust = 0.5)) +
   labs(fill = "Debt Source")+ theme(legend.position = "none")
 
-plot2 <- ggplot(liability.summary, aes(x = reorder(city, log(value/1000)), y = log(value/1000), fill = variable)) + geom_bar(stat = "identity") + scale_fill_manual(values=wes_palette(n=2, name="BottleRocket2")) +theme_classic() + coord_flip() + xlab("City") + 
-  ylab("Unfunded Liability (log scale)") + ggtitle("Fig 1.b Unfunded Obligations \n (reported values)") + theme(plot.title = element_text(hjust = 0.5)) +
-  labs(fill = "Debt Source") 
 
+plot1
 ```
 
-Given the skewness of the data, we decided to present the reported total of the unfunded obligations using a logarithmic scale as well. 
+#CALCULATED VS STANDARDIZED
 
-```{r, echo=FALSE, message=FALSE, warning=FALSE}
 
-require(gridExtra)
-grid.arrange(plot1, plot2, ncol=2)
+```{r}
+#Plottinf DF
+the_order <- total.summary$city
+
+total.summary %>%
+  select(city, UAAL_reported, UAAL_standard) %>%
+  melt(id.vars="city") %>%
+  mutate(variable = recode(variable,
+                           `UAAL_reported`="Reported",
+                           `UAAL_standard`="Standardized")) %>%
+  mutate(value = if_else(variable == "Reported", -(value/1000), value/1000)) %>%
+  ggplot(aes(x = city, y = value, group = variable, fill = variable)) +
+  geom_bar(stat = "identity", width = .9) +
+  coord_flip() +
+  #scale_x_discrete(limits = the_order) +
+  scale_fill_manual(values=wes_palette(n=2, name="BottleRocket2")) +
+  theme_classic() + xlab("City") + 
+  ylab("Unfunded Liability (in millions)") + 
+  ggtitle("Fig 1. OPEB Liability ") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  labs(fill = "Valuation Type")
 
 ```
 
