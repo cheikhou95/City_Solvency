@@ -1,0 +1,270 @@
+---
+title: "City Solvency Final Report - Draft"
+author: "Cheikhou Kane"
+date: "11/17/2019"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+#Needed Libraries
+library(tidyverse)
+library(ggplot2)
+library(wesanderson)
+library(reshape2)
+library(plotly)
+
+#Data
+opeb.raw <- read.csv("OPEB_20.csv") 
+
+pension.raw <- read_csv("PensionCalculation.csv")
+
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+#Data Processing
+
+opeb.raw$AAL_reported <- as.numeric(opeb.raw$AAL_reported)
+
+##Adding Unfunded Liability (UAAL)
+opeb.raw <- opeb.raw %>%
+  mutate(UAAL_reported = AAL_reported - assets)
+
+#Getting AAL with new discount rate
+opeb.raw <- opeb.raw %>%
+  mutate(AAL_standard =  (AAL_reported*((1+disc_rate)^15) )/ (1.0403)^15)
+
+#UAAL with new discount rate
+opeb.raw <- opeb.raw %>%
+  mutate(UAAL_standard = AAL_standard - assets)
+
+#corporate bond rate
+CBR <- 0.0403
+#standardized amoritization period
+am_period <- 12
+
+pension.raw <- pension.raw %>% 
+            mutate(TPL = case_when(is.na(TotalPensionLiability) ~ 
+                                     NetLiability + Assets),
+                   TPL_minus1 = case_when(is.na(TPL_minus1) ~ 
+                                            NL_minus1 + Assets), 
+                   TPL_plus1 = case_when(is.na(TPL_plus1) ~ 
+                                           NL_plus1 + Assets),
+                   PercentOwed = PercentOwedTotal, 
+                   Duration = (TPL_minus1 - TPL_plus1)/
+                     (2*TPL*.01),
+                   Convexity = (TPL_plus1 + TPL_minus1 - 
+                                (2 * TPL))/ (2 * TPL * (0.01^2)),
+                   Rate_Change = (CBR - DiscountRate),
+                   Standardized_TPL =
+                     ((am_period * Rate_Change) +
+                     (0.5 * Convexity * Rate_Change^2 * 100) +
+                       1)*TPL,
+                   Calc_Type = 
+                     case_when(!is.na(PerYear) ~ 
+                              "Yearly Contrib", 
+                              TRUE ~ "Percentage Contrib"),
+                   Standardized_NL = case_when(!is.na(Assets) ~ Standardized_TPL - Assets,
+                    is.na(Assets) ~ Standardized_TPL),
+                   reported_pension = case_when(
+                     Calc_Type == "Yearly Contrib" 
+                     ~ round(Duration,0) * PerYear, 
+                     (Calc_Type == "Percentage Contrib" & !is.na(Assets))
+                     ~ NetLiability * PercentOwed, 
+                   (Calc_Type == "Percentage Contrib" & is.na(Assets)) ~
+                     TotalPensionLiability * PercentOwed),
+                   standardized_pension = case_when(
+                     Calc_Type == "Yearly Contrib" 
+                     ~ am_period * PerYear, 
+                     Calc_Type == "Percentage Contrib"
+                     ~ Standardized_NL * PercentOwed))
+
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+#Summary data for OPEB
+opeb.summary <- opeb.raw %>%
+  group_by(city) %>%
+  select(UAAL_reported,UAAL_standard, revenue, Pop, city_contrib) %>%
+  summarise(UAAL_reported = sum(UAAL_reported),
+            UAAL_standard = sum(UAAL_standard),
+            Revenue = mean(revenue, na.rm = TRUE),
+            Population = mean(Pop, na.rm = TRUE),
+            city_contrib = sum(city_contrib, na.rm =TRUE))
+```
+
+```{r}
+#Pension Summary
+
+pension.summary <- pension.raw %>% 
+                    group_by(City) %>% 
+                    summarise(Pension_reported =
+                                sum(reported_pension),
+                              Pension_standard =
+                                sum(standardized_pension))
+```
+
+```{r}
+#combined Pension + OPEB
+Pension.UL <- cbind(Pen_reported = pension.summary$Pension_reported, 
+                    Pen_standard = pension.summary$Pension_standard)
+
+total.summary <- cbind(opeb.summary, Pension.UL)
+
+#Adding Per capita Calculation
+
+total.summary$Revenue[!is.finite(total.summary$Revenue)] <- NA  #Clean out Revenue 
+total.summary$Population[!is.finite(total.summary$Population)] <- NA #Clean out Population
+
+total.summary <- total.summary %>%
+  mutate(UAAL_reported.capita = UAAL_reported/Population,
+         UAAL_standard.capita = UAAL_standard/Population)
+
+#Adding share revenue
+
+total.summary <- total.summary %>%
+  mutate(OPEB.share = round(100*(city_contrib/Revenue),2))
+```
+
+# Introduction
+
+
+## Overview of Liability Issues
+
+## Discount Rates
+
+## What is a city?
+
+
+# I. Combined Liability: OPEB + Pension
+
+
+## Total Liability
+
+### Fig 1.a + 1.b OR Fig 1. 
+
+## Total Per Capita
+
+### Fig 2.a + 2.b OR Fig 2. 
+
+## Share of revenue
+
+### Fig 3. 
+
+
+# II. Pension Liability
+
+
+## Total Pension Liability
+
+### Fig 4.a + 4.b OR Fig 4. 
+
+```{r}
+total.summary %>%
+  select(city, Pen_reported, Pen_standard) %>%
+  melt(id.vars="city") %>%
+  mutate(variable = recode(variable,
+                           `Pen_reported`="Reported",
+                           `Pen_standard`="Standardized")) %>%
+  mutate(value = if_else(variable == "Reported", -(value/1000), value/1000)) %>%
+  ggplot(aes(x = city, y = value, group = variable, fill = variable)) +
+  geom_bar(stat = "identity", width = .9) +
+  coord_flip() +
+  #scale_x_discrete(limits = the_order) +
+  scale_fill_manual(values=wes_palette(n=2, name="BottleRocket2")) +
+  theme_classic() + xlab("City") + 
+  ylab("Unfunded Liability (in millions)") + 
+  ggtitle("Fig 7. Pension Liability ") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  labs(fill = "Valuation Type")
+  
+```
+
+
+## Total Pension Per Capita
+
+### Fig 5.a + 5.b OR Fig 5. 
+
+## Share of revenue
+
+### Fig 5.
+
+
+# III. OPEB Liability
+
+
+## Total OPEB Liability
+
+### Fig 7.a + 7.b OR Fig 7. 
+
+```{r}
+
+total.summary %>%
+  select(city, UAAL_reported, UAAL_standard) %>%
+  melt(id.vars="city") %>%
+  mutate(variable = recode(variable,
+                           `UAAL_reported`="Reported",
+                           `UAAL_standard`="Standardized")) %>%
+  mutate(value = if_else(variable == "Reported", -(value/1000), value/1000)) %>%
+  ggplot(aes(x = city, y = value, group = variable, fill = variable)) +
+  geom_bar(stat = "identity", width = .9) +
+  coord_flip() +
+  #scale_x_discrete(limits = the_order) +
+  scale_fill_manual(values=wes_palette(n=2, name="BottleRocket2")) +
+  theme_classic() + xlab("City") + 
+  ylab("Unfunded Liability (in millions)") + 
+  ggtitle("Fig 7. OPEB Liability ") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  labs(fill = "Valuation Type")
+```
+
+
+## Total OPEB Per Capita
+
+### Fig 8.a + 8.b OR Fig 8. 
+
+```{r}
+
+total.summary %>%
+  select(city, UAAL_reported.capita, UAAL_standard.capita) %>%
+  melt(id.vars="city") %>%
+  mutate(variable = recode(variable,
+                           `UAAL_reported.capita`="Reported",
+                           `UAAL_standard.capita`="Standardized")) %>%
+  mutate(value = if_else(variable == "Reported", -(value), value)) %>%
+  ggplot(aes(x = city, y = value, group = variable, fill = variable)) +
+  geom_bar(stat = "identity", width = .9) +
+  coord_flip() +
+  #scale_x_discrete(limits = the_order) +
+  scale_fill_manual(values=wes_palette(n=2, name="BottleRocket2")) +
+  theme_classic() + xlab("City") + 
+  ylab("Unfunded Liability per capita (in thousands)") + 
+  ggtitle("Fig 8. OPEB Liability per capita ") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  labs(fill = "Valuation Type")
+```
+
+
+## Share of revenue
+
+
+### Fig 9.
+
+```{r}
+total.summary %>%
+  ggplot(aes(x = city, y = OPEB.share, fill = city)) + geom_bar(stat = "identity") +
+  scale_fill_manual(values=wes_palette(n=22, name="BottleRocket2", type="continuous")) +
+  theme_classic() + coord_flip() +
+  xlab("City") + ylab("Share of Revenue") + 
+  ggtitle("Fig 2. OPEB Benefit Payment as share of Revenue \n (2017 reported values)") + 
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+# Conclusion
+
