@@ -17,7 +17,6 @@ library(tidyverse)
 library(ggplot2)
 library(wesanderson)
 library(reshape2)
-library(plotly)
 
 #Data
 opeb.raw <- read.csv("OPEB_20.csv") 
@@ -111,11 +110,16 @@ pension.summary <- pension.raw %>%
 ```
 
 ```{r}
-#combined Pension + OPEB
+#combined dataframe with Pension + OPEB data
 Pension.UL <- cbind(Pen_reported = pension.summary$Pension_reported, 
                     Pen_standard = pension.summary$Pension_standard)
 
 total.summary <- cbind(opeb.summary, Pension.UL)
+
+#Adding Total Lialbility
+total.summary <- total.summary %>%
+  mutate(total_reported = UAAL_reported + Pen_reported,
+         total_standard = UAAL_standard + Pen_standard)
 
 #Adding Per capita Calculation
 
@@ -123,8 +127,16 @@ total.summary$Revenue[!is.finite(total.summary$Revenue)] <- NA  #Clean out Reven
 total.summary$Population[!is.finite(total.summary$Population)] <- NA #Clean out Population
 
 total.summary <- total.summary %>%
+  mutate(total_reported.capita = total_reported/Population,
+         total_standard.capita = total_standard/Population)
+
+total.summary <- total.summary %>%
   mutate(UAAL_reported.capita = UAAL_reported/Population,
          UAAL_standard.capita = UAAL_standard/Population)
+
+total.summary <- total.summary %>%
+  mutate(Pen_reported.capita = Pen_reported/Population,
+         Pen_standard.capita = Pen_standard/Population)
 
 #Adding share revenue
 
@@ -149,14 +161,57 @@ total.summary <- total.summary %>%
 
 ### Fig 1.a + 1.b OR Fig 1. 
 
+```{r}
+total.summary %>%
+  select(city, total_reported, total_standard) %>%
+  melt(id.vars="city") %>%
+  mutate(variable = recode(variable,
+                           `total_reported`="Reported",
+                           `total_standard`="Standardized")) %>%
+  mutate(value = if_else(variable == "Reported", -(value/1000), value/1000)) %>%
+  ggplot(aes(x = city, y = value, group = variable, fill = variable)) +
+  geom_bar(stat = "identity", width = .9) +
+  coord_flip() +
+  #scale_x_discrete(limits = the_order) +
+  scale_fill_manual(values=wes_palette(n=2, name="BottleRocket2")) +
+  theme_classic() + xlab("City") + 
+  ylab("Unfunded Liability (in millions)") + 
+  ggtitle("Fig 1. Total Liability ") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  labs(fill = "Valuation Type")
+```
+
+
 ## Total Per Capita
 
 ### Fig 2.a + 2.b OR Fig 2. 
+
+```{r}
+total.summary %>%
+  select(city, total_reported.capita, total_standard.capita) %>%
+  melt(id.vars="city") %>%
+  mutate(variable = recode(variable,
+                           `total_reported.capita`="Reported",
+                           `total_standard.capita`="Standardized")) %>%
+  mutate(value = if_else(variable == "Reported", -(value), value)) %>%
+  ggplot(aes(x = city, y = value, group = variable, fill = variable)) +
+  geom_bar(stat = "identity", width = .9) +
+  coord_flip() +
+  #scale_x_discrete(limits = the_order) +
+  scale_fill_manual(values=wes_palette(n=2, name="BottleRocket2")) +
+  theme_classic() + xlab("City") + 
+  ylab("Unfunded Liability per capita (in thousands)") + 
+  ggtitle("Fig 2. Total Liability per capita ") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  labs(fill = "Valuation Type")
+```
+
 
 ## Share of revenue
 
 ### Fig 3. 
 
+**For this section I need the data on pension payments in 2017. The code to make the graph is ready however. ** 
 
 # II. Pension Liability
 
@@ -180,7 +235,7 @@ total.summary %>%
   scale_fill_manual(values=wes_palette(n=2, name="BottleRocket2")) +
   theme_classic() + xlab("City") + 
   ylab("Unfunded Liability (in millions)") + 
-  ggtitle("Fig 7. Pension Liability ") +
+  ggtitle("Fig 4. Pension Liability ") +
   theme(plot.title = element_text(hjust = 0.5)) +
   labs(fill = "Valuation Type")
   
@@ -191,10 +246,32 @@ total.summary %>%
 
 ### Fig 5.a + 5.b OR Fig 5. 
 
+```{r}
+total.summary %>%
+  select(city, Pen_reported.capita, Pen_standard.capita) %>%
+  melt(id.vars="city") %>%
+  mutate(variable = recode(variable,
+                           `Pen_reported.capita`="Reported",
+                           `Pen_standard.capita`="Standardized")) %>%
+  mutate(value = if_else(variable == "Reported", -(value), value)) %>%
+  ggplot(aes(x = city, y = value, group = variable, fill = variable)) +
+  geom_bar(stat = "identity", width = .9) +
+  coord_flip() +
+  #scale_x_discrete(limits = the_order) +
+  scale_fill_manual(values=wes_palette(n=2, name="BottleRocket2")) +
+  theme_classic() + xlab("City") + 
+  ylab("Unfunded Liability per capita (in thousands)") + 
+  ggtitle("Fig 5. Pension Liability per capita ") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  labs(fill = "Valuation Type")
+```
+
+
 ## Share of revenue
 
-### Fig 5.
+### Fig 6.
 
+**For this section I need the data on pension payments in 2017. The code is ready however. ** 
 
 # III. OPEB Liability
 
@@ -257,13 +334,16 @@ total.summary %>%
 ### Fig 9.
 
 ```{r}
+pal <- wes_palette("Zissou1", 10, type = "continuous")
+
 total.summary %>%
-  ggplot(aes(x = city, y = OPEB.share, fill = city)) + geom_bar(stat = "identity") +
-  scale_fill_manual(values=wes_palette(n=22, name="BottleRocket2", type="continuous")) +
+  ggplot(aes(x = city, y = OPEB.share, fill = OPEB.share)) + geom_bar(stat = "identity") +
+  scale_fill_gradientn(colours = pal) +
   theme_classic() + coord_flip() +
   xlab("City") + ylab("Share of Revenue") + 
-  ggtitle("Fig 2. OPEB Benefit Payment as share of Revenue \n (2017 reported values)") + 
-  theme(plot.title = element_text(hjust = 0.5))
+  ggtitle("Fig 9. OPEB Benefit Payment as share of Revenue \n (2017 reported values)") + 
+  theme(plot.title = element_text(hjust = 0.5)) +
+  labs(fill = "Revenue Share (%)")
 ```
 
 # Conclusion
