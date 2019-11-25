@@ -146,12 +146,20 @@ total.summary <- total.summary %>%
 
 # Introduction
 
+The unfunded obligations of the pension and Other Post-Employment Benefits (OPEB) plans sponsored by local governments in the United States continue to grow. In the following report, we study in detail the financial obligations of 20 major US cities. We report on both their own measurements of their obligations, and how these differ from valuations using more realistic assumptions.
 
-## Overview of Liability Issues
+At the end of the 2017 fiscal year, the following cities reported unfunded liabilities of over \$253.6  billions: \$140.6 billions for pensions, $113 billions for OPEB. However, according to our calculations, we estimate the true unfunded liabilities to be \$1.6 trillions. This discrepancy results from the "loophole" within the government accounting standards practices that allows cities to measure liabilities by choosing an expected return, the discount rate,  on plan assets. We will further the discuss the impact of the discount rate on liability calculations below.  
 
 ## Discount Rates
 
+In 2004, new reporting guidelines from the Governmental Accounting Standards Board (GASB) were released. These guidelines, which became effective in 2007, required cities to report for the cost of both OPEB and Pension plans on an accrual basis. In particular, GASB Statement No. 45, Accounting and Financial Reporting by Employers for Postemployment Benefits Other Than Pensions, represented a significant change towards accrual reporting for governmental entities.
+Although GASB 45 was a major shift in governmental accounting and financial reporting, it still provides an incentive for governments to use a higher rate to discount future benefit promises if they set up a trust and commit to paying the Annual Required Contribution (ARC). The ARC is the minimum amount required to cover both the plan's normal costs (the Present Value of benefit payments for the current year) and the unfunded liability (the gap between current assets and the present value of future benefits already promised to employees) amortized over a  specific period.
+In other words, with a trust and a commitment to paying the ARC, cities can discount obligations by their own estimate of the expected long-term return of their assets. This idiosyncracy makes it problematic to compare cities according to their own reports. For this reason, we decided to use the AA corporate bond rate as the discount rate for all cities in our valuations in order to place cities on a more comparable footing.
+
+
 ## What is a city?
+
+## Overview of Liability Issues
 
 
 # I. Combined Liability: OPEB + Pension
@@ -161,7 +169,7 @@ total.summary <- total.summary %>%
 
 ### Fig 1.a + 1.b OR Fig 1. 
 
-```{r}
+```{r, warning=FALSE, message=FALSE}
 total.summary %>%
   select(city, total_reported, total_standard) %>%
   melt(id.vars="city") %>%
@@ -186,7 +194,7 @@ total.summary %>%
 
 ### Fig 2.a + 2.b OR Fig 2. 
 
-```{r}
+```{r, warning=FALSE, message=FALSE}
 total.summary %>%
   select(city, total_reported.capita, total_standard.capita) %>%
   melt(id.vars="city") %>%
@@ -220,7 +228,7 @@ total.summary %>%
 
 ### Fig 4.a + 4.b OR Fig 4. 
 
-```{r}
+```{r, warning=FALSE, message=FALSE}
 total.summary %>%
   select(city, Pen_reported, Pen_standard) %>%
   melt(id.vars="city") %>%
@@ -246,7 +254,7 @@ total.summary %>%
 
 ### Fig 5.a + 5.b OR Fig 5. 
 
-```{r}
+```{r, warning=FALSE, message=FALSE}
 total.summary %>%
   select(city, Pen_reported.capita, Pen_standard.capita) %>%
   melt(id.vars="city") %>%
@@ -280,7 +288,7 @@ total.summary %>%
 
 ### Fig 7.a + 7.b OR Fig 7. 
 
-```{r}
+```{r, warning=FALSE, message=FALSE}
 
 total.summary %>%
   select(city, UAAL_reported, UAAL_standard) %>%
@@ -306,7 +314,7 @@ total.summary %>%
 
 ### Fig 8.a + 8.b OR Fig 8. 
 
-```{r}
+```{r, warning=FALSE, message=FALSE}
 
 total.summary %>%
   select(city, UAAL_reported.capita, UAAL_standard.capita) %>%
@@ -333,7 +341,7 @@ total.summary %>%
 
 ### Fig 9.
 
-```{r}
+```{r, warning=FALSE, message=FALSE}
 pal <- wes_palette("Zissou1", 10, type = "continuous")
 
 total.summary %>%
