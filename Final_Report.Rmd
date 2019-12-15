@@ -108,9 +108,9 @@ opeb.summary <- opeb.raw %>%
 pension.summary <- pension.raw %>% 
                     group_by(City) %>% 
                     summarise(Pension_reported =
-                                sum(reported_pension),
+                                sum(reported_pension,na.rm = TRUE),
                               Pension_standard =
-                                sum(standardized_pension))
+                                sum(standardized_pension,na.rm = TRUE))
 ```
 
 ```{r}
@@ -152,7 +152,7 @@ total.summary <- total.summary %>%
 
 The unfunded obligations of the pension and Other Post-Employment Benefits (OPEB) plans sponsored by local governments in the United States continue to grow. In the following report, we study in detail the financial obligations the 20 largest US cities (by population). We report on both their own measurements of their obligations, and how these differ from valuations using more realistic assumptions.
 
-We find that most cities reported OPEB liabilities close to our measures, however, for pensions, we find that cities drastically undervalue their unfunded liabilities. In fact, at the end of the 2017 fiscal year, the 20 largest U.S cities reported unfunded liabilities of over **\$253.7**  billion: **\$140.6** billion for pensions and **$113.1** billion for OPEB. According to our calculations, we estimate the true unfunded liabilities to be **\$1.97** trillion: **\$1863.8** billion for pensions and **\$111.3** billion for OPEB.
+We find that most cities reported OPEB liabilities close to our measures, however, for pensions, we find that cities drastically undervalue their unfunded liabilities. In fact, at the end of the 2017 fiscal year, the 20 largest U.S cities reported unfunded liabilities of over **\$255.4**  billion: **\$142.2** billion for pensions and **$113.2** billion for OPEB. According to our calculations, we estimate the true unfunded liabilities to be almost **\$2** trillion: **\$1888** billion for pensions and **\$111.4** billion for OPEB.
 The discrepancy between our valuations and the cities' reports results from the fact that the selection of the discount rate as per the government accounting standards practices is at the discretion of a city, rather than being standardized by a federal authority, hence allowing cities to measure liabilities by choosing their own expected return on plan assets.
 In order to place cities on a more comparable footing, we decided to use the **15 year AA corporate bond rate** (June 2017), approximately **4.00%**, as the discount rate for both pension and OPEB for all plans sponsored by the 20 cities in our valuations as FASB stipulates that local governments must use a high-quality municipal bond rate as the discount rate. We will further discuss the impact of the discount rate on liability calculations below.  
 
@@ -234,7 +234,7 @@ Compared to OPEB, the difference between the reported values and our valuations 
 
 ### 2. Total Pension Per Capita
 
-The difference in the reported pension liability and our own valuations scaled by population size are illustrated in Figure 3 below. Similar to OPEB, we provide per capita measures to present city residents with a better idea of their city's pension financial burden and how it compares with that of other cities. The average reported unfunded pension liability per capita was \$`r round(mean(total.summary$Pen_reported.capita,na.rm=TRUE),1)*1000` while the average standardized unfunded pension liability per capita was \$42,100.
+The difference in the reported pension liability and our own valuations scaled by population size are illustrated in Figure 3 below. Similar to OPEB, we provide per capita measures to present city residents with a better idea of their city's pension financial burden and how it compares with that of other cities. The average reported unfunded pension liability per capita was \$`r round(mean(total.summary$Pen_reported.capita,na.rm=TRUE),1)*1000` while the average standardized unfunded pension liability per capita was \$41,800.
 
 ```{r, warning=FALSE, message=FALSE}
 total.summary %>%
@@ -310,7 +310,7 @@ The difference in the reported UAALs and our own valuations scaled by population
 ```{r, warning=FALSE, message=FALSE}
 
 total.summary %>%
-  filter(city != "Columbus" & city != "Denver") %>%
+  filter(city != "Columbus") %>%
   select(city, UAAL_reported.capita, UAAL_standard.capita) %>%
   melt(id.vars="city") %>%
   mutate(variable = recode(variable,
@@ -338,7 +338,6 @@ The share or proportion of a city's revenues used to pay for benefit payments in
 ```{r, warning=FALSE, message=FALSE}
 
 total.summary %>%
-  filter(city != "Columbus") %>%
   ggplot(aes(x = city, y = OPEB.share/100)) + geom_bar(stat = "identity",fill = "#F98400") +
   scale_y_continuous(labels = scales::percent) +
   theme_classic() + coord_flip() +
@@ -356,7 +355,7 @@ Similar to pension, first, we present the total unfunded liability in dollar ter
 
 ### 1. Total Liability
 
-The difference in the reported total liabilty, i.e pension and OPEB combined, and the ones calculated under our standardized valuation are illustrated in Figure 7 below. In accordance with our results from the previous two sections, we find that cities tend to report lower unfunded liabilities. For almost all cities, the standardized total liability is greater than the reported value. The average reported total liability was a little less than **$13 billion** while the average standardized total liability was a little over **$100 billion**. Only three cities out of the 20: Philadelphia, San Diego and San Jose reported an unfunded total liability lower than our standardized measure. Once again, we can see the sensitivity of the unfunded liabilities to the discount rate. 
+The difference in the reported total liabilty, i.e pension and OPEB combined, and the ones calculated under our standardized valuation are illustrated in Figure 7 below. In accordance with our results from the previous two sections, we find that cities tend to report lower unfunded liabilities. For almost all cities, the standardized total liability is greater than the reported value. The average reported total liability was a little over  **$12 billion** while the average standardized total liability was a little less than **$95 billion**. Only three cities out of the 20: Philadelphia, San Diego and San Jose reported an unfunded total liability lower than our standardized measure. Once again, we can see the sensitivity of the unfunded liabilities to the discount rate. 
 
 ```{r}
 total.summary %>%
@@ -387,7 +386,7 @@ total.summary %>%
 
 ### 2. Total Per Capita
 
-Similar to OPEB and pension, we also provide in Figure 8 below the total liability per capita for all the cities included in our report. As one would expect, the total unfunded liabilities these cities reported were usually lower than our standardized measures. The average reported total liability per capita was **$4,400** while the average standardized total liability per capita was **$43,500**. 
+Similar to OPEB and pension, we also provide in Figure 8 below the total liability per capita for all the cities included in our report. As one would expect, the total unfunded liabilities these cities reported were usually lower than our standardized measures. The average reported total liability per capita was **$4,500** while the average standardized total liability per capita was **$44,800**. 
 
 ```{r, warning=FALSE, message=FALSE}
 total.summary %>%
@@ -396,7 +395,6 @@ total.summary %>%
   mutate(variable = recode(variable,
                            `total_reported.capita`="Reported",
                            `total_standard.capita`="Standardized")) %>%
-  #mutate(value = if_else(variable == "Reported", -(value), value)) %>%
   ggplot(aes(x = city, y = value*1000, group = variable, fill = variable)) +
   geom_bar(stat = "identity",position = "dodge", width = .9) +
   
@@ -418,3 +416,4 @@ total.summary %>%
 
 # Conclusion
 
+In this report, we have investigated in detail the financial obligations the 20 largest US cities (by population) using both their own measurements of their obligations and valuations using more realistic assumptions. In particular, we have focused on using a discount rate that satisfies governmental accounting standards. In order to place cities on a more comparable footing, we decided to use the **15 year AA corporate bond rate** (June 2017), approximately **4.00%**, as the discount rate for both pension and OPEB for all plans sponsored by the 20 cities. One key finding is that cities drastically undervalue their pensions obligations. In fact, the 20 cities reported \$142.2 billion in unfunded liability; however, according to our calculations, we find that the unfunded pension liability for these cities is \$1.88 trillion. For OPEB, the 20 largest US cities reported unfunded liabilities close to our valuations. In fact, the total reported unfunded OPEBliability (\$113.2 billion) was actually higher than our measure (\$111.4 billion). 

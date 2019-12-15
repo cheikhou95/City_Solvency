@@ -1,13 +1,8 @@
-﻿City,DebtSourceAbbr,DiscountRate,NetLiability,NL_minus1,NL_plus1,Assets,TotalPensionLiability,TPL_minus1,TPL_plus1,Cost_service,Cost_interest,Contrib_employer,Contrib_member,Contrib_Entity,Responsible,UnitName,Year,DataSource,DataYear,PercentOwedTotal,PercentOwedNPL,PerYear
+City,DebtSourceAbbr,DiscountRate,NetLiability,NL_minus1,NL_plus1,Assets,TotalPensionLiability,TPL_minus1,TPL_plus1,Cost_service,Cost_interest,Contrib_employer,Contrib_member,Contrib_Entity,Responsible,UnitName,Year,DataSource,DataYear,PercentOwedTotal,PercentOwedNPL,PerYear
 Austin,City Employees,0.075,1147385,1608628,762471,2650438,3797823,,,107767,266257,110846,56194,,City,,2017,City of Austin CAFR,2018,1,,
 Austin,Police Officers,0.077,420116,553553,307089,769475,1189591,,,35322,84472,35141,21437,,City,,2017,City of Austin CAFR,2018,1,,
 Austin,Fire Fighters,0.077,85003,189653,-3088,953798,1038801,,,23830,75812,19242,16319,,City,,2017,City of Austin CAFR,2018,1,,
-Boston,BRS-Teachers,0.0735,2466439,2939629,2053619,6766491,,,,204906,758644,260165,154937,131298,Commonwealth,,2017,Schedules of Employer Amounts and Pension Amounts by Employer,2018,0.609865466,0.993924427,
-Boston,BRS-Excluding Teachers,0.075,1543171,2290650,911389,2597693,,,,204906,758644,260165,154937,131298,Boston Public Health Commission,,2017,Schedules of Employer Amounts and Pension Amounts by Employer,2018,0.028856039,,
-Boston,BRS-Excluding Teachers,0.075,1543171,2290650,911389,2597693,,,,204906,758644,260165,154937,131298,Boston Water and Sewer Commission,,2017,Schedules of Employer Amounts and Pension Amounts by Employer,2018,0.016580758,,
-Boston,BRS-Excluding Teachers,0.075,1543171,2290650,911389,2597693,,,,204906,758644,260165,154937,131298,Boston Redevelopment Authority,,2017,Schedules of Employer Amounts and Pension Amounts by Employer,2018,0.003790022,,
-Boston,BRS-Excluding Teachers,0.075,1543171,2290650,911389,2597693,,,,204906,758644,260165,154937,131298,Boston Housing Authority,,2017,Schedules of Employer Amounts and Pension Amounts by Employer,2018,0.019554485,,
-Boston,BRS-Excluding Teachers,0.075,,,,6766491,,,,204906,758644,260165,154937,131298,City,,2017,Schedules of Employer Amounts and Pension Amounts by Employer,2018,0.3204,,
+Boston,BRS-Excluding Teachers,0.075,1483824,2044641,1008453,6766491,,,,,,,,,City,,2017,City of Boston CAFR,2018,1,,
 Boston,Noncontrib,0.0358,,,,,85938,,,,,,,,City,,2017,City of Boston CAFR,2018,1,,
 Charlotte,LGERS,0.072,1527723,4586259,-1025189,24703010,,,,,,,,,City,,2017,State of North Carolina CAFR,2017,0.06115,,
 Charlotte,LGERS,0.072,1527723,4586259,-1025189,24703010,,,,,,,,,Component Unit,Charlotte Regional Visitors Authority,2017,State of North Carolina CAFR,2017,0.00241,,
