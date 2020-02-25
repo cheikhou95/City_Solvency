@@ -1,0 +1,488 @@
+---
+title: "Benefit Threat to City Solvency"
+author: 'Questions: citysolvency@ncf.edu'
+date: "2/24/2020"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+```
+
+```{r}
+#Needed Libraries
+library(tidyverse)
+library(ggplot2)
+library(wesanderson)
+library(reshape2)
+library(RColorBrewer)
+library(scales)
+library(knitr)
+library(kableExtra)
+
+#Data
+opeb.raw <- read.csv("opeb_20_data.csv") 
+
+pension.raw <- read_csv("pension_20_data.csv")
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+#Data Processing for OPEB
+
+#New Discount Rate
+OPEB_rate <- 0.03
+#Amortization Period
+OPEB_am_period <- 15
+
+
+opeb.raw$AAL_reported <- as.numeric(opeb.raw$AAL_reported)
+
+##Adding Unfunded Liability (UAAL)
+opeb.raw <- opeb.raw %>%
+  mutate(UAAL_reported = AAL_reported - assets)
+
+#Getting AAL with new discount rate
+opeb.raw <- opeb.raw %>%
+  mutate(AAL_standard =  (AAL_reported*((1+disc_rate)^OPEB_am_period) )/ (1+OPEB_rate)^OPEB_am_period)
+
+#UAAL with new discount rate
+opeb.raw <- opeb.raw %>%
+  mutate(UAAL_standard = AAL_standard - assets)
+
+```
+
+```{r, echo=FALSE,message=FALSE, warning=FALSE}
+#Data Processing for Pension
+
+#corporate bond rate
+CBR <- 0.04
+#standardized amoritization period
+am_period <- 15
+
+pension.raw <- pension.raw %>% 
+            mutate(
+              TotalPensionLiability = case_when(
+              #Replace TPL by NPL + Assets where it's missing
+              is.na(TotalPensionLiability) ~ (NetLiability + Assets),
+                                     TRUE ~ TotalPensionLiability
+              ),
+                   #Replace TPLs where they're missing
+                   TPL_minus1 = case_when(is.na(TPL_minus1) ~ 
+                                            (NL_minus1 + Assets),
+                                          TRUE ~ TotalPensionLiability), 
+                   TPL_plus1 = case_when(is.na(TPL_plus1) ~ 
+                                           (NL_plus1 + Assets),
+                                         TRUE ~ TotalPensionLiability),
+                   PercentOwed = PercentOwedTotal, 
+              #Total Pension Liability under new discount rate
+                   Standardized_TPL = (TotalPensionLiability*((1+DiscountRate)^am_period) )/((1+CBR)^am_period)
+              )
+
+```
+
+```{r}
+#Summarize data
+
+#Summary data for OPEB
+opeb.summary <- opeb.raw %>%
+  group_by(city) %>%
+  select(UAAL_reported,UAAL_standard, revenue, Pop, city_contrib) %>%
+  summarise(UAAL_reported = sum(UAAL_reported),
+            UAAL_standard = sum(UAAL_standard),
+            Revenue = mean(revenue, na.rm = TRUE),
+            Population = mean(Pop, na.rm = TRUE),
+            city_contrib = sum(city_contrib, na.rm =TRUE))
+
+#Summary data for Pension
+pension.summary <- pension.raw %>% 
+                    group_by(City) %>% 
+                    summarise(Pension_reported =
+                                sum(TotalPensionLiability,na.rm = TRUE),
+                              Pension_standard =
+                                sum(Standardized_TPL,na.rm = TRUE),
+                              Pen_Expense = mean(PenExp, na.rm = TRUE))
+```
+
+```{r}
+#Combined dataframe with Pension + OPEB data
+Pension.UL <- cbind(Pen_reported = pension.summary$Pension_reported, 
+                    Pen_standard = pension.summary$Pension_standard,
+                    Pen_Expense = pension.summary$Pen_Expense)
+
+total.summary <- cbind(opeb.summary, Pension.UL)
+
+#Adding Total Liability
+total.summary <- total.summary %>%
+  mutate(total_reported = UAAL_reported + Pen_reported,
+         total_standard = UAAL_standard + Pen_standard)
+
+#Adding Per capita Calculation
+
+total.summary$Revenue[!is.finite(total.summary$Revenue)] <- NA  #Clean out Revenue 
+total.summary$Population[!is.finite(total.summary$Population)] <- NA #Clean out Population
+
+total.summary <- total.summary %>%
+  mutate(total_reported.capita = total_reported/Population,
+         total_standard.capita = total_standard/Population)
+
+total.summary <- total.summary %>%
+  mutate(UAAL_reported.capita = UAAL_reported/Population,
+         UAAL_standard.capita = UAAL_standard/Population)
+
+total.summary <- total.summary %>%
+  mutate(Pen_reported.capita = Pen_reported/Population,
+         Pen_standard.capita = Pen_standard/Population)
+
+#Adding share revenue
+
+total.summary <- total.summary %>%
+  mutate(OPEB.share = round(100*(city_contrib/Revenue),2),
+         Pen.share  = round(100*(Pen_Expense/Revenue) ,2))
+
+#Filter Minneapolis, which we looked at but is not in top 22
+total.summary<- total.summary %>%
+  filter(city != "Minneapolis")
+
+```
+
+# Executive Summary
+
+The unfunded obligations of the pension and other post-employment benefits (OPEB) plans sponsored by local governments in the United States continue to grow. In the following report, we study in detail the financial obligations of 21 of the 22 largest US cities (excluding Washington, DC, the 20th largest city). We review both their own reports on these obligations and how these differ from our estimates based on more realistic assumptions.
+
+We find that most cities reported OPEB liabilities close to our measures, however, for pensions, we find that cities drastically undervalue their unfunded liabilities. In fact, at the end of the 2017 fiscal year, these largest U.S cities reported unfunded liabilities of slightly over **$850** billion: **\$`r round(sum(total.summary$Pen_reported,na.rm=TRUE)/(10^6))`** billion for pensions and **\$`r round(sum(total.summary$UAAL_reported,na.rm=TRUE)/(10^6))`** billion for OPEB. According to our calculations, we estimate the true unfunded liabilities to be over **\$1.3** trillion: **\$`r round(sum(total.summary$Pen_standard,na.rm=TRUE)/(10^9),1)`** trillion for pensions and **\$`r round(sum(total.summary$UAAL_standard,na.rm=TRUE)/(10^6))`** billion for OPEB. 
+
+The largest discrepancy, between the unfunded pension liabilities reported by the cities and our estimates of their pension liabilities, is primarily the result of different discount rates used in valuing these liabilities. Under government accounting standards, cities are given broad discretion to choose a discount rate based on their expectation of future returns on plan assets. Thus, there is wide variation in the discount rate chosen by cities in their reporting, with several cities choosing highly optimistic discount rates for their pension plans at 7% or higher (see appendix).
+
+But discount rates are supposed to represent a conservative rate of return with a high degree of confidence. For example, the FASB stipulates that corporations must use the AA corporate bond rate as the discount rate for their pension plans. In June, 2017, the AA corporate bond rate for 15 years was approximately 4%. Therefore, we used that 4% as the discount rate in our estimates of the unfunded liabilities for pensions in all 21 cities, and a 3% discount rate for OPEBs to account for the comparably shorter liabilities of OPEBs relative to pensions.
+
+Our analysis is divided into three main parts. First, we present in detail the unfunded pension liability of the 21 cities, followed by pension liability per capita and pension liability as a percentage of revenues.  Second, we present in detail the unfunded OPEB liability of the 21 cities, followed by OPEB liability per capital and OPEB liability as a percentage of revenues. Third, we present total pension and OPEB liabilities for each city, followed by total liabilities per capita and as share of revenue. 
+
+
+# I. Pension Liability
+
+In this section, we study in detail the pension liability of the 20 cities. We report on both the city's own calculations of their pension obligations, based on their Comprehensive Annual Financial Report (CAFR), and illustrate how these differ from valuations using a standardized discount rate calculation.
+First, we present the total unfunded pension liability for each city in dollars. Second, we showcase the total liability scaled by population size. Finally, we present the 2017 pension expense as a share of governmental fund revenues. 
+
+### 1. Total Pension Liability
+
+The difference in the reported pension liability and the ones calculated under our standardized valuation are illustrated in Figure 1 below. In general, the higher discount rates used by cities in their calculations result in much lower - sometimes, dramatically lower - estimates of their unfunded liabilities, with cities like New York, Minneapolis, and Columbus reporting particularly extreme total differences. Even cities without extreme values generally report a value notably lower than the standardized value, with only Fort Worth reporting an unfunded pension liability close to our standardized measure. 
+
+```{r, warning=FALSE, message=FALSE}
+total.summary %>%
+  select(city, Pen_reported, Pen_standard) %>%
+  melt(id.vars="city") %>%
+  mutate(variable = recode(variable,
+                           `Pen_reported`="Reported",
+                           `Pen_standard`="Standardized")) %>%
+  ggplot(aes(x = reorder(city, value), y = value/1000, group = variable, fill = variable)) +
+  geom_bar(stat = "identity",position = "dodge", width = .9) +
+  coord_flip(ylim = c(0,150000)) +
+  scale_fill_manual(values= c(wes_palette(n=1, name="Royal1"),"#F98400")) +
+  scale_y_continuous(labels = dollar)+
+  theme_classic() + xlab("City") + 
+  ylab("Unfunded Liability (in millions)") + 
+  ggtitle("Fig 1. Pension Liability ") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  labs(fill = "Valuation Type") +
+
+  #Add Outlier Textbox: New York and Columbus 
+  annotate("label", x = 6, y = 100000, label = "Not Drawn to Scale: \n New York (rep. $234b; st. $359b) \n Columbus (rep. $124b; st. $206b)", size=3) 
+  
+```
+
+### 2. Total Pension Liability Per Capita
+
+To better illustrate the scale of concern for unfunded pension liability, we provide per capita measures to represent a city's pension financial burden relative to their population size. This also allows comparisons with other cities more naturally. As before, city obligations are under-reported in reported values, with the average reported total pension liability per capita was **\$`r format(round(mean(total.summary$Pen_reported.capita,na.rm=TRUE)*1000),big.mark=",")`** while the average standardized total pension liability per capita was **\$`r format(round(mean(total.summary$Pen_standard.capita,na.rm=TRUE)*1000),big.mark=",")`**. 
+
+```{r, warning=FALSE, message=FALSE}
+total.summary %>%
+  select(city, Pen_reported.capita, Pen_standard.capita) %>%
+  melt(id.vars="city") %>%
+  mutate(variable = recode(variable,
+                           `Pen_reported.capita`="Reported",
+                           `Pen_standard.capita`="Standardized")) %>%
+  ggplot(aes(x = reorder(city, value), y = value*1000, group = variable, fill = variable)) +
+  geom_bar(stat = "identity",position = "dodge", width = .9) +
+  
+  #Add Outlier Textbox: Columbus 
+  annotate("label", x = 6, y = 75000, label = "Not Drawn to Scale: \n Columbus (rep. $140k; st. $235k)", size=3) +
+  
+  #Zoom into graph
+  coord_flip(ylim = c(0,105000)) + #ylim = c(0,100000)
+  scale_fill_manual(values= c(wes_palette(n=1, name="Royal1"),"#F98400")) +
+  scale_y_continuous(labels=dollar)+
+  theme_classic() + xlab("City") + 
+  ylab("Unfunded Liability per capita") + 
+  ggtitle("Fig 2. Pension Liability per capita ") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  labs(fill = "Valuation Type")
+```
+
+Furthermore, the variation in city obligation becomes clearer, as some cities appear to be in more extreme fiscal danger while others appear to have more manageable situations, relative to their populations (and thus, potential tax base). As before, Fort Worth has little difference between their reported and standardized values as well as the lowest total unfunded obligation per capita. While New York has the largest unfunded pension liability in terms of total dollar amount, the massive scale of the city's population moves it into the middle of the pack here. For other cities, the problem appears extreme, with the city of Columbus, for instance, looking at a $235,000 unfunded pension obligations per person (compared to a reported value of $140,000).
+
+### 3. Share of revenue
+
+Finally, the share or proportion of a city's governmental fund revenues used to cover the pension expense in 2017 is illustrated in Figure 3. This provides another view into city management of pension fund obligations, with significant variation in city share of revenue used to cover pension financial burden. On average, share of revenue was **`r round(mean(total.summary$Pen.share,na.rm=TRUE),2)`****%** with a low of **0.85%** for Seattle and a high of **73.64%** for Dallas.
+
+```{r, warning=FALSE, message=FALSE}
+
+total.summary %>%
+  ggplot(aes(x = reorder(city, Pen.share), y = Pen.share/100)) + geom_bar(width=.5, stat = "identity",fill = "#F98400") +
+  scale_y_continuous(labels = scales::percent) +
+  theme_classic() + coord_flip() +
+  xlab("City") + ylab("Share of Governmental Fund Revenue") + 
+  ggtitle("Fig 3. Pension Expense as share of 2017 Revenue \n (reported values)") + 
+  theme(plot.title = element_text(hjust = 0.5)) +
+  labs(fill = "Revenue Share (%)")
+```
+
+
+# II. OPEB Liability
+
+In this section, we evaluate the other post employment benefit (OPEB) liability of cities in our study. As before, we report on both a city's own calculations of their OPEB obligations and how these differ from valuations using a standardized measure with reasonable discount rate assumptions. In addition, we provide several ways of comparing the financial burden due to OPEB. 
+
+First, we present the total Unfunded Actuarial Accrued Liability (UAAL),i.e the difference between the present value of benefit payment (current and past) and the present value of the OPEB Asset Fund. Second, we showcase the total UAAL scaled by population size. Finally, we present the share of city's revenue utilized to cover OPEB benefit payments.  
+
+### 1. Unfunded OPEB Liability
+
+The difference in the reported UAALs and the ones calculated under our standardized valuation are illustrated in Figure 4 below. As before, most cities report lower unfunded liabilities than more reasonable discount rate assumptions would suggest. 
+
+```{r, warning=FALSE, message=FALSE}
+total.summary$city <- as.factor(total.summary$city)
+total.summary %>%
+  filter(city != "Columbus") %>%
+  select(city, UAAL_reported, UAAL_standard) %>%
+  melt(id.vars="city") %>%
+  mutate(variable = recode(variable,
+                           `UAAL_reported`="Reported",
+                           `UAAL_standard`="Standardized")) %>%
+  ggplot(aes(x = reorder(city, value), y = value/1000, group = variable, fill = variable)) +
+  geom_bar(stat = "identity", position="dodge",width = .9) +
+  
+  #Add Outlier Textbox: New York 
+  annotate("label", x = 6, y = 7000, label = "Not Drawn to Scale: \n New York (rep. $88b; st. $78b)", size=3) +
+  
+  #Zoom Into graph
+  coord_flip(ylim = c(0,10000)) +
+  scale_fill_manual(values= c(wes_palette(n=1, name="Royal1"),"#008771")) +
+  scale_y_continuous(labels=dollar)+
+  theme_classic() + xlab("City") + 
+  ylab("Unfunded Liability (in millions)") + 
+  ggtitle("Fig 4. OPEB Liability ") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  labs(fill = "Valuation Type")
+```
+
+Also as expected, cities with the larger populations (New York, Los Angeles) tend to carry the highest amounts of unfunded obligations, although there is little correlation between the actual size of city's obligations and the extent to which they proportionately underestimate those obligations. While Los Angeles has a dramatic  difference between  actual and reported values, so do cities further down the scale, such as San Antonio, Charlotte, and Phoenix.  We also note that there is not necessarily a clear relation between  OPEB obligation and pension obligation  - while Boston, for example, is near the top in regardes to their OPEB liability, in regards to pensions, they are further down the list.
+
+### 2. Unfunded OPEB Liability Per Capita
+
+The difference in the reported UAALs and our own valuations scaled by population size are illustrated in Figure 5 below. As before, this allows for an arguably clearer indication of a city's fiscal status.
+
+In addition to allowing for greater comparability between cities in OPEB, such scale allows for greater comparability with city pension obligations as well.  One thing that obviously arises is how much more dramatic liability on pensions are than OPEBs.  While there are some liability values near $10,000, the median per capita OPEB liability is well under $5,000, with all but a few cities illustrating obligations (even by standardized reporting) under $3,000 per capita and many under $1,000. This compares to average standardized  obligations of \$`r format(round(mean(total.summary$Pen_standard.capita,na.rm=TRUE)*1000),big.mark=",")` per person per city in the pension arena.
+
+
+```{r, warning=FALSE, message=FALSE}
+
+total.summary %>%
+  filter(city != "Columbus") %>%
+  select(city, UAAL_reported.capita, UAAL_standard.capita) %>%
+  melt(id.vars="city") %>%
+  mutate(variable = recode(variable,
+                           `UAAL_reported.capita`="Reported",
+                           `UAAL_standard.capita`="Standardized")) %>%
+  #mutate(value = if_else(variable == "Reported", -(value), value)) %>%
+  ggplot(aes(x = reorder(city, value), y = value*1000, group = variable, fill = variable)) +
+  geom_bar(stat = "identity", position = "dodge",width = .9) +
+  
+  coord_flip() +
+  scale_fill_manual(values= c(wes_palette(n=1, name="Royal1"),"#00a086")) +
+  scale_y_continuous(labels=dollar)+
+  theme_classic() + xlab("City") + 
+  ylab("Unfunded Liability per capita") + 
+  ggtitle("Fig 5. OPEB Liability per capita ") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  labs(fill = "Valuation Type")
+```
+
+
+### 3. Share of revenue
+
+The share or proportion of a city's revenues used to pay for benefit payments in 2017 is illustrated in Figure 6. This further provides users with another alternative to compare cities regarding their OPEB financial burden. The average share of revenue was **2.95%** with a low of **0.16%** for Denver and a high of **7.2%** for Los Angeles. It is interesting to note that the city of New York fares much better under this metric than the previous ones. 
+
+```{r, warning=FALSE, message=FALSE}
+
+total.summary %>%
+  ggplot(aes(x = reorder(city, OPEB.share), y = OPEB.share/100)) + geom_bar(stat = "identity",fill = "#00a086", width=.5) +
+  scale_y_continuous(labels = scales::percent) +
+  theme_classic() + coord_flip() +
+  xlab("City") + ylab("Share of Revenue") + 
+  ggtitle("Fig 6. OPEB Benefit Payment as share of 2017 Revenue \n (reported values)") + 
+  theme(plot.title = element_text(hjust = 0.5)) +
+  labs(fill = "Revenue Share (%)")
+```
+
+# III. Total Unfunded Liability
+
+In this section, we combine our results from the two previous sections to study in detail the total unfunded liability of the cities in question. We report on both their own estimates of their total obligations as well as a standardized measure. As before, we first present the total unfunded liability in dollar terms, then showcase the total liability scaled by population size, and finally display payments as share of revenue. 
+
+### 1. Total Unfunded Liability
+
+The difference in the total city reported liabilty (pension and OPEB combined) and the standardized valuation we calculate are illustrated in Figure 7 below. Unsurprisingly, for all cities, the standardized total liability is greater than the reported value. The average reported total liability was about  **\$`r round(mean(total.summary$total_reported,na.rm=TRUE)/(10^6))`** billion per city while the average standardized total liability was around **\$`r round(mean(total.summary$total_standard,na.rm=TRUE)/(10^6))`** billion per city, with larger cities logically under greater burdens. 
+
+```{r}
+total.summary %>%
+  filter(city != "Columbus") %>%
+  select(city, total_reported, total_standard) %>%
+  melt(id.vars="city") %>%
+  mutate(variable = recode(variable,
+                           `total_reported`="Reported",
+                           `total_standard`="Standardized")) %>%
+  ggplot(aes(x = reorder(city, value), y = value/1000, group = variable, fill = variable)) +
+  geom_bar(stat = "identity",position="dodge") +
+  
+  #Add Outlier Textbox: New York 
+  annotate("label", x = 6, y = 70000, label = "Not Drawn to Scale: \n New York (rep. $323b; st. $450b)", size=3) +
+  
+  #Zoom into graph
+  coord_flip(ylim = c(0,100000)) + #ylim = c(0,400000)
+  scale_y_continuous(labels=dollar)+
+  scale_fill_manual(values= c(wes_palette(n=1, name="Royal1"),"#8B008B")) +
+  theme_classic() + xlab("City") + 
+  ylab("Unfunded Liability (in millions)") + 
+  ggtitle("Fig 7. Total Liability ") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  labs(fill = "Valuation Type")
+```
+
+
+
+### 2. Total Unfunded Liability Per Capita
+
+Figure 8 below shows the total liability per capita for all the cities included in our report. As before, the total unfunded liabilities these cities reported were usually lower than our standardized measures, but the per capita measure allows for a different comparison. In particular, we note how these numbers are primarily driven by pension numbers, where obligations tend to be larger: Charlotte, for instance, comes in on top of the scale here, largely as a result of their pension obligations. In comparison, New York, the most burdened city under OPEB, is actually fourth in overall liability here due to their relatively average per capita burden under pensions, and Boston falls in the middle of the pack as well.
+
+```{r, warning=FALSE, message=FALSE}
+total.summary %>%
+  filter(city != "Columbus") %>%
+  select(city, total_reported.capita, total_standard.capita) %>%
+  melt(id.vars="city") %>%
+  mutate(variable = recode(variable,
+                           `total_reported.capita`="Reported",
+                           `total_standard.capita`="Standardized")) %>%
+  ggplot(aes(x = reorder(city, value), y = value*1000, group = variable, fill = variable)) +
+  geom_bar(stat = "identity",position = "dodge", width = .9) +
+  
+
+  
+  #Zoom into graph
+  coord_flip(ylim = c(0,100000)) + #ylim = c(0,100000)
+  scale_fill_manual(values= c(wes_palette(n=1, name="Royal1"),"#8B008B")) +
+  scale_y_continuous(labels = dollar) +
+  theme_classic() + xlab("City") + 
+  ylab("Unfunded Liability per capita") + 
+  ggtitle("Fig 8. Total Liability per capita ") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  labs(fill = "Valuation Type")
+```
+
+### 3. City Pension and OPEB Payments and Expenses as share Revenue
+Finally, we report overall city pension and OPEB payments and expenses as a share of revenue, which again illustrates significant diversity among cities' payments.
+
+```{r, warning=FALSE, message=FALSE}
+total.summary %>%
+  filter(city != "Columbus") %>%
+  mutate(total.share = OPEB.share+Pen.share) %>%
+  ggplot(aes(x = reorder(city, total.share), y = total.share/100)) + geom_bar(width=.5, stat = "identity",fill = "#8B008B") +
+  scale_y_continuous(labels = scales::percent) +
+  theme_classic() + coord_flip() +
+  xlab("City") + ylab("Share of Governmental Fund Revenue") +
+  ggtitle("Fig 9. OPEB Benefit Payment and Pension Expense as share of Revenue \n (2017 reported values)") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  labs(fill = "Revenue Share (%)")
+```
+
+### Appendix. Discount Rates
+
+The unfunded obligations of local cities with regard to pension and OPEB plans are sensitive to underlying actuarial assumptions, and even small changes can significantly change reported liabilities. The most significant of these assumptions is the discount rate.
+
+In 2004, new reporting guidelines from the Governmental Accounting Standards Board (GASB) were released. These guidelines, which became effective in 2007, required cities to report for the cost of both OPEB and Pension plans on an accrual basis. In particular, GASB Statement No. 45, Accounting and Financial Reporting by Employers for Postemployment Benefits Other Than Pensions, represented a significant change towards accrual reporting for governmental entities.
+
+Although GASB 45 was a major shift in governmental accounting and financial reporting, it still provides an incentive for governments to use a higher rate to discount future benefit promises if they set up a trust and commit to paying the Annual Required Contribution (ARC). The ARC is the minimum amount required to cover both the plan's normal costs (the Present Value of benefit payments for the current year) and the unfunded liability (the gap between current assets and the present value of future benefits already promised to employees) amortized over a  specific period. Thus, it becomes clear that the discount rate plays a pivotal role in assessing the ARC. In fact, the higher the discount rate, the lower the ARC, and vice versa.
+
+In other words, with a trust and a commitment to paying the ARC, cities can discount obligations by their own estimate of the expected long-term return of their assets. This idiosyncracy is what makes it problematic to compare cities according to their own reports: there is wide variation in discount rates chosen by cities (and sometimes, even by departments within cities). For example, for OPEB alone, discount rates for the plans sponsored by the cities in our report ranged from **2.92%** to **7.95%** as displayed below in Figure A1. 
+
+```{r}
+opeb.raw %>%
+  select(city, disc_rate) %>%
+  ggplot( aes(x=disc_rate)) +
+  geom_histogram(fill= "#00a086", color="black")+
+  geom_vline(aes(xintercept=mean(disc_rate, na.rm = TRUE)), color="black",
+             linetype="dashed")+
+  annotate("label", x = 0.053, y=4, label = "Average Discount Rate: 5.2%") +
+  scale_x_continuous(labels = scales::percent) +
+  labs(title="Fig A1. Reported OPEB Discount Rates \n (2017)",x="Discount Rate", y = "Count")+
+  theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+### A2. Tables
+
+#### Table 1. Total Pension and  OPEB Liabilities (Millions)
+
+```{r}
+
+summary.table<-cbind(pension.summary, opeb.summary)
+summary.table<-select (summary.table,-c(city,Pen_Expense,Revenue,Population,city_contrib))
+
+
+summary.table$Pension_reported <- format(round(as.numeric(summary.table$Pension_reported/1000), 2), nsmall=0, big.mark=",")
+summary.table$Pension_standard <- format(round(as.numeric(summary.table$Pension_standard/1000), 2), nsmall=0, big.mark=",")
+summary.table$UAAL_reported <- format(round(as.numeric(summary.table$UAAL_reported/1000), 2), nsmall=0, big.mark=",")
+summary.table$UAAL_standard <- format(round(as.numeric(summary.table$UAAL_standard/1000), 2), nsmall=0, big.mark=",")
+
+
+summary.table <- rename(summary.table,
+                "Pension (Reported)" = Pension_reported,
+                "Pension (Standardized)" = Pension_standard,
+                "OPEB (Reported)" = UAAL_reported,
+                "OPEB (Standardized)" = UAAL_standard)
+
+
+kable(summary.table) %>%
+  kable_styling("striped", full_width = F)
+
+```
+
+#### Table 2. Per Capita Pension and  OPEB Liabilities (Thousands)
+
+```{r}
+
+summary.table<-cbind(pension.summary, opeb.summary)
+summary.table<-select (summary.table,-c(city,Pen_Expense,Revenue,city_contrib))
+
+summary.table$Pension_reported <- summary.table$Pension_reported*1000/summary.table$Population
+summary.table$Pension_standard <- summary.table$Pension_standard*1000/summary.table$Population
+summary.table$UAAL_reported <- summary.table$UAAL_reported*1000/summary.table$Population
+summary.table$UAAL_standard <- summary.table$UAAL_standard*1000/summary.table$Population
+
+summary.table<-select (summary.table,-c(Population))
+
+summary.table$Pension_reported <- format(round(as.numeric(summary.table$Pension_reported), 2), nsmall=0, big.mark=",")
+summary.table$Pension_standard <- format(round(as.numeric(summary.table$Pension_standard), 2), nsmall=0, big.mark=",")
+summary.table$UAAL_reported <- format(round(as.numeric(summary.table$UAAL_reported), 2), nsmall=0, big.mark=",")
+summary.table$UAAL_standard <- format(round(as.numeric(summary.table$UAAL_standard), 2), nsmall=0, big.mark=",")
+
+
+summary.table <- rename(summary.table,
+                "Pension (Reported)" = Pension_reported,
+                "Pension (Standardized)" = Pension_standard,
+                "OPEB (Reported)" = UAAL_reported,
+                "OPEB (Standardized)" = UAAL_standard)
+
+
+kable(summary.table) %>%
+  kable_styling("striped", full_width = F)
+
+```
