@@ -1,10 +1,12 @@
 ---
 title: "Benefit Threat to City Solvency"
 author: 'Questions: citysolvency@ncf.edu'
-date: "2/24/2020"
+date: "5/1/2020"
 output:
- # pdf_document: default
-  html_document: default
+  pdf_document: 
+    keep_tex: yes
+#  html_document:
+#    self_contained: no
 ---
 
 ```{r setup, include=FALSE}
@@ -29,6 +31,7 @@ opeb.raw <- read.csv("opeb_20_data.csv")
 pension.raw <- read_csv("pension_20_data_adj.csv")
 
 #To use unadjusted Total Pension Liability, Assets, and Net Pension Liability for Pensions, uncomment these lines
+#Note this option throws off axis scales in graphs
 
 #pension.raw$NetLiability<-pension.raw$NetLiability_org
 #pension.raw$Assets<-pension.raw$Assets_org
@@ -40,6 +43,11 @@ pension.raw <- read_csv("pension_20_data_adj.csv")
 pension.raw$NetLiability<-pension.raw$NetLiability_adj
 pension.raw$Assets<-pension.raw$Assets_adj
 pension.raw$TotalPensionLiability<-pension.raw$TotalPensionLiability_adj
+
+#To drop all partial responsibilities (not recommended, drops cities/plans) uncomment these lines
+#pension.raw <- pension.raw %>%filter(PercentOwedTotal==1)
+#To drop all partial responsibilities below .9 (not recommended, drops cities/plans) uncomment these lines
+#pension.raw <- pension.raw %>%filter(PercentOwedTotal>.9)
 
 
 ```
@@ -167,7 +175,7 @@ total.summary<- total.summary %>%
 
 The unfunded obligations of the pension and other post-employment benefits (OPEB) plans sponsored by local governments in the United States continue to grow. In the following report, we study in detail the financial obligations of 21 of the 22 largest US cities (excluding Washington, DC, the 20th largest city). We review both their own reports on these obligations and how these differ from our estimates based on more realistic assumptions.
 
-We find that most cities reported OPEB liabilities close to our measures, however, for pensions, we find that cities drastically undervalue their unfunded liabilities. In fact, at the end of the 2017 fiscal year, these largest U.S cities reported unfunded liabilities of slightly over **$850** billion: **\$`r round(sum(total.summary$Pen_reported,na.rm=TRUE)/(10^6))`** billion for pensions and **\$`r round(sum(total.summary$UAAL_reported,na.rm=TRUE)/(10^6))`** billion for OPEB. According to our calculations, we estimate the true unfunded liabilities to be over **\$1.3** trillion: **\$`r round(sum(total.summary$Pen_standard,na.rm=TRUE)/(10^6),1)`** trillion for pensions and **\$`r round(sum(total.summary$UAAL_standard,na.rm=TRUE)/(10^6))`** billion for OPEB. 
+We find that most cities reported OPEB liabilities close to our measures, however, for pensions, we find that cities drastically undervalue their unfunded liabilities. In fact, at the end of the 2017 fiscal year, these largest U.S cities reported unfunded liabilities of approximately **\$`r round(sum(total.summary$Pen_reported,na.rm=TRUE)/(10^6))+round(sum(total.summary$UAAL_reported,na.rm=TRUE)/(10^6))`** billion: **\$`r round(sum(total.summary$Pen_reported,na.rm=TRUE)/(10^6))`** billion for pensions and **\$`r round(sum(total.summary$UAAL_reported,na.rm=TRUE)/(10^6))`** billion for OPEB. According to our calculations, we estimate the true unfunded liabilities to be over **\$`r round(sum(total.summary$Pen_standard,na.rm=TRUE)/(10^6))+round(sum(total.summary$UAAL_standard,na.rm=TRUE)/(10^6))`** billion: **\$`r round(sum(total.summary$Pen_standard,na.rm=TRUE)/(10^6))`** trillion for pensions and **\$`r round(sum(total.summary$UAAL_standard,na.rm=TRUE)/(10^6))`** billion for OPEB. 
 
 The largest discrepancy, between the unfunded pension liabilities reported by the cities and our estimates of their pension liabilities, is primarily the result of different discount rates used in valuing these liabilities. Under government accounting standards, cities are given broad discretion to choose a discount rate based on their expectation of future returns on plan assets. Thus, there is wide variation in the discount rate chosen by cities in their reporting, with several cities choosing highly optimistic discount rates for their pension plans at 7% or higher (see appendix).
 
@@ -178,12 +186,12 @@ Our analysis is divided into three main parts. First, we present in detail the u
 
 # I. Pension Liability
 
-In this section, we study in detail the pension liability of the 20 cities. We report on both the city's own calculations of their pension obligations, based on their Comprehensive Annual Financial Report (CAFR), and illustrate how these differ from valuations using a standardized discount rate calculation.
+In this section, we study in detail the pension liability of the 20 cities. We report on both the city's own calculations of their pension obligations, based on their Comprehensive Annual Financial Reports (CAFRs), and illustrate how these differ from valuations using a standardized discount rate calculation.
 First, we present the total unfunded pension liability for each city in dollars. Second, we showcase the total liability scaled by population size. Finally, we present the 2017 pension expense as a share of governmental fund revenues. 
 
 ### 1. Total Pension Liability
 
-The difference in the reported pension liability and the ones calculated under our standardized valuation are illustrated in Figure 1 below. In general, the higher discount rates used by cities in their calculations result in much lower - sometimes, dramatically lower - estimates of their unfunded liabilities, with cities like New York, Minneapolis, and Columbus reporting particularly extreme total differences. Even cities without extreme values generally report a value notably lower than the standardized value, with only Fort Worth reporting an unfunded pension liability close to our standardized measure. 
+The difference in the reported pension liability and the ones calculated under our standardized valuation are illustrated in Figure 1 below. In general, the higher discount rates used by cities in their calculations result in much lower - sometimes, dramatically lower - estimates of their unfunded liabilities, with cities like New York, Los Angeles, and Chicago reporting particularly extreme total differences. Even cities without extreme values generally report a value notably lower than the standardized value, with only Fort Worth reporting an unfunded pension liability close to our standardized measure. 
 
 ```{r, warning=FALSE, message=FALSE}
 total.summary %>%
@@ -194,7 +202,7 @@ total.summary %>%
                            `Pen_standard`="Standardized")) %>%
   ggplot(aes(x = reorder(city, value), y = value/1000, group = variable, fill = variable)) +
   geom_bar(stat = "identity",position = "dodge", width = .9) +
-  coord_flip(ylim = c(0,150000)) +
+  coord_flip(ylim = c(0,80000)) +
   scale_fill_manual(values= c(wes_palette(n=1, name="Royal1"),"#F98400")) +
   scale_y_continuous(labels = dollar)+
   theme_classic() + xlab("City") + 
@@ -204,7 +212,8 @@ total.summary %>%
   labs(fill = "Valuation Type") +
 
   #Add Outlier Textbox: New York and Columbus 
-  annotate("label", x = 6, y = 100000, label = "Not Drawn to Scale: \n New York (rep. $234b; st. $359b) \n Columbus (rep. $124b; st. $206b)", size=3) 
+  #annotate("label", x = 6, y = 60000, label = "Not Drawn to Scale: \n New York (rep. $195b; st. $299b)", size=3) 
+annotate("label", x = 6, y = 60000, label = "Not Drawn to Scale: \n New York (see appendix)", size=3) 
   
 ```
 
@@ -223,10 +232,10 @@ total.summary %>%
   geom_bar(stat = "identity",position = "dodge", width = .9) +
   
   #Add Outlier Textbox: Columbus 
-  annotate("label", x = 6, y = 75000, label = "Not Drawn to Scale: \n Columbus (rep. $140k; st. $235k)", size=3) +
+  #annotate("label", x = 6, y = 75000, label = "Not Drawn to Scale: \n Columbus (rep. $140k; st. $235k)", size=3) +
   
   #Zoom into graph
-  coord_flip(ylim = c(0,105000)) + #ylim = c(0,100000)
+  coord_flip(ylim = c(0,50000)) + #ylim = c(0,100000)
   scale_fill_manual(values= c(wes_palette(n=1, name="Royal1"),"#F98400")) +
   scale_y_continuous(labels=dollar)+
   theme_classic() + xlab("City") + 
@@ -236,7 +245,7 @@ total.summary %>%
   labs(fill = "Valuation Type")
 ```
 
-Furthermore, the variation in city obligation becomes clearer, as some cities appear to be in more extreme fiscal danger while others appear to have more manageable situations, relative to their populations (and thus, potential tax base). As before, Fort Worth has little difference between their reported and standardized values as well as the lowest total unfunded obligation per capita. While New York has the largest unfunded pension liability in terms of total dollar amount, the massive scale of the city's population moves it into the middle of the pack here. For other cities, the problem appears extreme, with the city of Columbus, for instance, looking at a $235,000 unfunded pension obligations per person (compared to a reported value of $140,000).
+Furthermore, the variation in city obligation becomes clearer, as some cities appear to be in more extreme fiscal danger while others appear to have more manageable situations, relative to their populations (and thus, potential tax base). As before, Fort Worth has little difference between their reported and standardized values as well as the lowest total unfunded obligation per capita. While New York has the largest unfunded pension liability in terms of total dollar amount, the massive scale of the city's population moves it further down the list here. 
 
 ### 3. Share of revenue
 
@@ -278,7 +287,8 @@ total.summary %>%
   geom_bar(stat = "identity", position="dodge",width = .9) +
   
   #Add Outlier Textbox: New York 
-  annotate("label", x = 6, y = 7000, label = "Not Drawn to Scale: \n New York (rep. $88b; st. $78b)", size=3) +
+  #annotate("label", x = 6, y = 7000, label = "Not Drawn to Scale: \n New York (rep. $88b; st. $78b)", size=3) +
+  annotate("label", x = 6, y = 7000, label = "Not Drawn to Scale: \n New York (see appendix)", size=3) +
   
   #Zoom Into graph
   coord_flip(ylim = c(0,10000)) +
@@ -360,7 +370,8 @@ total.summary %>%
   geom_bar(stat = "identity",position="dodge") +
   
   #Add Outlier Textbox: New York 
-  annotate("label", x = 6, y = 70000, label = "Not Drawn to Scale: \n New York (rep. $323b; st. $450b)", size=3) +
+  #annotate("label", x = 6, y = 70000, label = "Not Drawn to Scale: \n New York (rep. $283; st. $389.6b)", size=3) +
+  annotate("label", x = 6, y = 70000, label = "Not Drawn to Scale: \n New York (see appendix)", size=3) +
   
   #Zoom into graph
   coord_flip(ylim = c(0,100000)) + #ylim = c(0,400000)
@@ -377,7 +388,7 @@ total.summary %>%
 
 ### 2. Total Unfunded Liability Per Capita
 
-Figure 8 below shows the total liability per capita for all the cities included in our report. As before, the total unfunded liabilities these cities reported were usually lower than our standardized measures, but the per capita measure allows for a different comparison. In particular, we note how these numbers are primarily driven by pension numbers, where obligations tend to be larger: Charlotte, for instance, comes in on top of the scale here, largely as a result of their pension obligations. In comparison, New York, the most burdened city under OPEB, is actually fourth in overall liability here due to their relatively average per capita burden under pensions, and Boston falls in the middle of the pack as well.
+Figure 8 below shows the total liability per capita for all the cities included in our report. As before, the total unfunded liabilities these cities reported were usually lower than our standardized measures, but the per capita measure allows for a different comparison. In particular, we note how these numbers are primarily driven by pension numbers, where obligations tend to be larger.
 
 ```{r, warning=FALSE, message=FALSE}
 total.summary %>%
@@ -393,7 +404,7 @@ total.summary %>%
 
   
   #Zoom into graph
-  coord_flip(ylim = c(0,100000)) + #ylim = c(0,100000)
+  coord_flip(ylim = c(0,55000)) + #ylim = c(0,100000)
   scale_fill_manual(values= c(wes_palette(n=1, name="Royal1"),"#8B008B")) +
   scale_y_continuous(labels = dollar) +
   theme_classic() + xlab("City") + 
@@ -430,17 +441,30 @@ Although GASB 45 was a major shift in governmental accounting and financial repo
 In other words, with a trust and a commitment to paying the ARC, cities can discount obligations by their own estimate of the expected long-term return of their assets. This idiosyncracy is what makes it problematic to compare cities according to their own reports: there is wide variation in discount rates chosen by cities (and sometimes, even by departments within cities). For example, for OPEB alone, discount rates for the plans sponsored by the cities in our report ranged from **2.92%** to **7.95%** as displayed below in Figure A1. 
 
 ```{r}
+pension.raw %>%
+  select(City, DiscountRate) %>%
+  ggplot( aes(x=DiscountRate)) +
+  geom_histogram(fill= "#F98400", color="black")+
+  geom_vline(aes(xintercept=mean(DiscountRate, na.rm = TRUE)), color="black",
+             linetype="dashed")+
+  annotate("label", x = 0.068, y=18, label = "Average: 6.8%") +
+  scale_x_continuous(labels = scales::percent) +
+  labs(title="Fig A1. Reported Pension Discount Rates",x="Discount Rate", y = "Count")+
+  theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5))
+
 opeb.raw %>%
   select(city, disc_rate) %>%
   ggplot( aes(x=disc_rate)) +
   geom_histogram(fill= "#00a086", color="black")+
   geom_vline(aes(xintercept=mean(disc_rate, na.rm = TRUE)), color="black",
              linetype="dashed")+
-  annotate("label", x = 0.053, y=4, label = "Average Discount Rate: 5.2%") +
+  annotate("label", x = 0.053, y=4, label = "Average: 5.3%") +
   scale_x_continuous(labels = scales::percent) +
-  labs(title="Fig A1. Reported OPEB Discount Rates \n (2017)",x="Discount Rate", y = "Count")+
+  labs(title="Fig A2. Reported OPEB Discount Rates",x="Discount Rate", y = "Count")+
   theme_classic() +
   theme(plot.title = element_text(hjust = 0.5))
+
 ```
 
 ### A2. Tables
